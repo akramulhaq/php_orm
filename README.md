@@ -5,7 +5,9 @@ Usage
 $orm = new Orm();
 
 $orm->name  = "Md Ekramul Hoque12";
-$orm->email = "akramul.haq5@gmail.com";
+
+$orm->email = "your_email@example.com";
+
 $orm->save();
 
 </code>
