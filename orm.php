@@ -30,6 +30,12 @@ class Orm  {
     {
         $this->$name = $value;
     }
+    public function set($field,$value){
+        $this->_fields[$field]['value'] = $value;
+        $this->$field = $value;
+        return $this;
+    }
+    
     
     public function db(){
         return $this->_db;
@@ -55,7 +61,9 @@ class Orm  {
         return $this->_db->insert_id;        
     }
     public function row(){
-        return $this->_result->fetch_assoc();        
+        $data = $this->_result->fetch_object();
+        $this->_result->free();
+        return $data;        
     }
     
     public function data(){
@@ -97,12 +105,11 @@ class Orm  {
         
         if($id){
             $this->_id = $id;
-        }
-        
-        if($this->_sql){
+            $this->_sql = "SELECT * FROM {$this->_table} where id='{$this->_id}'";
+        }elseif($this->_sql){
             
         }elseif($this->_id){
-            $this->_sql = "SELECT * FROM {$this->_table} where id='$id'";
+            $this->_sql = "SELECT * FROM {$this->_table} where id='{$this->_id}'";
         }else{
             $this->all();
         }
@@ -110,8 +117,20 @@ class Orm  {
         return $this;
     }
     
-    public function find($str=""){
+    
+    
+    public function find($id){
+        $data = $this->get($id)->row();
+       
+        if(!$data){
+            $this->_error = "No data found";
+            return $this;
+        }
         
+        foreach($this->_field_list as $field){
+            $this->$field = $data->$field;
+        }
+        return $this;
     }
     
     public function query($sql='',$resultmode = MYSQLI_USE_RESULT){
@@ -155,6 +174,14 @@ class Orm  {
        return $this; 
     }
     
+    public function delete($id=''){
+        if(!$id)
+            $id = $this->_id;
+        $this->_sql = "Delete FROM {$this->_table} where id = '$id'";
+        $this->query();
+        return $this;
+    }
+    
     public function columns(){
         $this->_sql = "SELECT  
                             column_name,
@@ -172,16 +199,12 @@ class Orm  {
 }
 
 $orm = new Orm("posts");
-//$orm->table();
 
-$orm->title = "another3";
-$orm->user_id = 1;
+$orm->find(5);
+$orm->title = "ovi";
+$orm->body  = "no body";
 $orm->save();
 
-$orm->title = "another5";
-$orm->save();
 
-// $orm->get()->data();
-print_r($orm->get()->row());
 
  
