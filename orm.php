@@ -3,7 +3,9 @@
 
 class Orm  {
     private $_table   = "users";
+    private $_id      = "";
     private $_sql     = "";
+    private $_last_sql     = "";
     public  $_host    = "localhost";
     public  $_username= "root";
     public  $_password= "hello";
@@ -14,18 +16,60 @@ class Orm  {
     public  $_field_list=array();
     public  $_error   = "";
     
-    public function __construct(){
+    public function __construct($table=''){
         
         $this->_db = new mysqli($this->_host,$this->_username,$this->_password,$this->_db_name);
-        $this->init();
+        if($table){
+            $this->_table = $table;
+            $this->init();
+        }
+       
+        
     }
+    public function __set($name, $value)
+    {
+        $this->$name = $value;
+    }
+    
     public function db(){
         return $this->_db;
+    }
+    public function table($table=""){
+        $this->_table = $table;
+        $this->init();
     }
     public function sql(){
         return $this->_sql;
     }
+    
+    public function all(){
+        $this->_sql = "SELECT * FROM {$this->_table}";
+        return $this;
+    }
+    
+    
+    public function result(){
+        return $this->_result;
+    }
+    public function insert_id(){
+        return $this->_db->insert_id;        
+    }
+    public function row(){
+        return $this->_result->fetch_assoc();        
+    }
+    
+    public function data(){
+        return $this->_result->fetch_all(MYSQLI_ASSOC);
+    }
+    
+    public function last_sql(){
+        
+        return $this->_last_sql;
+    }
+    
     public function init(){
+        $this->_fields     = array();
+        $this->_field_list = array();
         if($this->columns()->get()->result()){
             while($column   = $this->_result->fetch_assoc())
             {    
@@ -33,6 +77,7 @@ class Orm  {
                 $column_name        = $column['column_name'];
                 unset($column['column_name']);
                 $column['value']    = '';
+                $this->$column_name = '';
                 $this->_fields[$column_name] = $column;
                 $this->_field_list[] = $column_name;
             }
@@ -46,60 +91,67 @@ class Orm  {
         $this->_db->select_db($database);
     }
     
-    public function __set($name, $value)
-    {
-        if(in_array($name,$this->_field_list)){
-            $this->$name = $value;
-            $this->_fields[$name]['value'] = $value;
-        }else{
-            $this->_error = "Column not found";
-            return false;
-        }
-    }
+   
     
     public function get($id=''){
+        
         if($id){
-            $this->_sql = "SELECT * FROM {$this->_table} where id='$id'";
+            $this->_id = $id;
         }
-        if(!$this->_sql){
+        
+        if($this->_sql){
+            
+        }elseif($this->_id){
+            $this->_sql = "SELECT * FROM {$this->_table} where id='$id'";
+        }else{
             $this->all();
         }
         $this->query($this->_sql);
         return $this;
     }
     
-    public function all(){
-        $this->_sql = "SELECT * FROM {$this->_table}";
-        return $this;
+    public function find($str=""){
+        
     }
     
     public function query($sql='',$resultmode = MYSQLI_USE_RESULT){
         if(!$sql)
             $sql = $this->_sql;
-        $this->_result = $this->_db->query($this->_sql,$resultmode);
+        $this->_result = $this->_db->query($sql,$resultmode);
+        
         if(!$this->_result){
-            die("Error Occured : {$this->_sql} ".$this->error);
+            $this->_error = $this->_db->error;
+            die("Error Occured : {$sql} ".$this->_error);
         }
+        $this->_last_sql = $sql;
+        $this->_sql      = '';
+        
         return $this;
     }
     
-    public function result(){
-        return $this->_result;
-    }
-    
-    public function data(){
-        return $this->_result->fetch_all();
-    }
-    
     public function save(){
+       
+       if($this->_id){
+           $this->_sql = "UPDATE {$this->_table} set ";
+           foreach($this->_fields as $field=>$field_data){
+               $this->_sql .= " $field='{$this->$field}',";
+           }
+           $this->_sql  = rtrim($this->_sql,',');
+           $this->_sql .= " where id='{$this->_id}'";
+           $this->query($this->_sql);
+           return $this;
+       }
+       $this->id = '';
        $insert_sql = "INSERT INTO {$this->_table} (`".implode('`,`',$this->_field_list)."`) VALUES (" ;
        $this->_sql  = $insert_sql;
-       foreach($this->_fields as $field){
-           $this->_sql .= "'{$field['value']}',";
+       foreach($this->_fields as $field=>$field_data){
+           $this->_sql .= "'{$this->$field}',";
        }
        $this->_sql  = rtrim($this->_sql,',');
        $this->_sql .= ")";
        $this->query($this->_sql);
+       $this->_id   = $this->insert_id();
+       $this->id    = $this->_id;
        return $this; 
     }
     
@@ -116,10 +168,20 @@ class Orm  {
         
         return $this;
     }
+   
 }
 
-$orm = new Orm();
-$orm->get_all()->get();
-var_dump($orm->result()->fetch_all());
+$orm = new Orm("posts");
+//$orm->table();
+
+$orm->title = "another3";
+$orm->user_id = 1;
+$orm->save();
+
+$orm->title = "another5";
+$orm->save();
+
+// $orm->get()->data();
+print_r($orm->get()->row());
 
  
