@@ -121,7 +121,7 @@ class Orm  {
     
     public function find($id){
         $data = $this->get($id)->row();
-       
+        
         if(!$data){
             $this->_error = "No data found";
             return $this;
@@ -179,6 +179,8 @@ class Orm  {
             $id = $this->_id;
         $this->_sql = "Delete FROM {$this->_table} where id = '$id'";
         $this->query();
+        $this->id = '';
+        $this->_id = '';
         return $this;
     }
     
@@ -200,10 +202,14 @@ class Orm  {
 
 $orm = new Orm("posts");
 
-$orm->find(5);
-$orm->title = "ovi";
-$orm->body  = "no body";
+$orm->find(21);
+$orm->title     = "Farhad  ";
+$orm->body      = "this is body";
+$orm->user_id   = 1;
+
+
 $orm->save();
+
 
 
 
