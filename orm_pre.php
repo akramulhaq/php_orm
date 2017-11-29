@@ -2,7 +2,7 @@
 
 
 class Orm  {
-    public $_table     = "users";
+    public  $_table     = "users";
     private $_id        = "";
     private $_sql       = "";
     private $_where_sql = "";
@@ -13,6 +13,7 @@ class Orm  {
     public  $_db                 ;
     public  $_db_name   = "lsapp";
     public  $_result;
+    public  $_stmt;
     public  $_fields    = array();
     public  $_where     = array();
     public  $_field_list= array();
@@ -56,7 +57,7 @@ class Orm  {
     }
     
     public function all(){
-        $this->_sql = "SELECT * FROM {$this->_table}";
+        $this->_sql = "SELECT * FROM `{$this->_table}`";
         return $this;
     }
     
@@ -114,14 +115,21 @@ class Orm  {
         
         if($id){
             $this->_id = $id;
-            $this->_sql = "SELECT * FROM {$this->_table} where id='{$this->_id}'";
+            $this->_sql = "SELECT * FROM `{$this->_table}` ";
+            $this->where("id",$this->_id);
+            // $this->execute();
+            // return $this;
         }elseif($this->_sql){
             
         }elseif($this->_id){
-            $this->_sql = "SELECT * FROM {$this->_table} where id='{$this->_id}'";
+            $this->_sql = "SELECT * FROM `{$this->_table}` ";
+            $this->where("id",$this->_id);
+            // $this->execute();
+            // return $this;
         }else{
             $this->all();
         }
+        
         $this->query();
         return $this;
     }
@@ -202,37 +210,88 @@ class Orm  {
     }
     
     public function save(){
-       
+       $fields_counter = count($this->_fields);
+       $types = str_repeat("s",$fields_counter);
+       $params = array();
        if($this->_id){
-           $this->_sql = "UPDATE {$this->_table} set ";
-           foreach($this->_fields as $field=>$field_data){
-               $this->_sql .= " $field='{$this->$field}',";
-           }
-           $this->_sql  = rtrim($this->_sql,',');
+           $this->_sql  = "UPDATE {$this->_table} set ";
+           $this->_sql .= "`".implode("`=?,`",$this->_field_list).'`=?';
            $this->where("id",$this->_id);
-           $this->query();
-           return $this;
+           $params = array();
+           foreach($this->_fields as $field=>$field_data){
+               $params[] = &$this->$field;
+           } 
+           array_unshift($params,$types);
+           
+       }else{
+            $this->id   = '';
+           $insert_sql = "INSERT INTO {$this->_table} (`".implode('`,`',$this->_field_list)."`) VALUES (" ;
+           
+           $comma_bind  = str_repeat("?,",$fields_counter-1);
+           $comma_bind .= "?)";
+           $insert_sql .= $comma_bind;
+           
+           $this->_sql  = $insert_sql;
+           foreach($this->_fields as $field=>$field_data){
+               $params[] = &$this->$field;
+           }
+           array_unshift($params,$types); // put types in first element in array;
+           
+           $this->execute($params);
+           $this->id  = $this->_stmt->insert_id;
+           $this->_id = $this->_stmt->insert_id;
+           
        }
-       $this->id = '';
-       $insert_sql = "INSERT INTO {$this->_table} (`".implode('`,`',$this->_field_list)."`) VALUES (" ;
-       $this->_sql  = $insert_sql;
-       foreach($this->_fields as $field=>$field_data){
-           $this->_sql .= "'{$this->$field}',";
-       }
-       $this->_sql  = rtrim($this->_sql,',');
-       $this->_sql .= ")";
-       $this->query();
-       $this->_id   = $this->insert_id();
-       $this->id    = $this->_id;
+       
        return $this; 
     }
+    
+    public function execute($params=array()){
+        
+        if(!$params)
+            $params[0] = '';
+        
+        $where_sql = '';
+        if($this->_where){
+            
+            $where_index = array_keys($this->_where);
+            $where_sql  = " WHERE `".implode("`=? AND `",$where_index).'`=?';
+            $params[0] .= str_repeat("s",count($this->_where));   //$params[0] is type list            
+            foreach($this->_where as $value){
+                $params[] = &$value;
+            } 
+            $this->_where_sql = $where_sql;
+        }
+        
+        
+       $this->_sql .= $where_sql;
+       if(!$stmt = $this->_db->prepare($this->_sql)){
+           die($this->_sql."\n".$this->_db->error);
+       }
+       
+       
+       $ref_class    = new ReflectionClass('mysqli_stmt');
+       $method       = $ref_class->getMethod("bind_param");
+       $method->invokeArgs($stmt,$params);
+       $stmt->execute();
+       
+       if($stmt->error)
+           die($this->_sql."\n".$stmt->error);
+       
+       $this->_stmt = $stmt;
+       
+       return $this;
+       
+    }
+    
+    
     
     public function delete($id=''){
         if(!$id)
             $id = $this->_id;
         $this->_sql = "Delete FROM {$this->_table} ";
         $this->where("id",$id);
-        $this->query();
+        $this->execute();
         $this->id = '';
         $this->_id = '';
         return $this;
@@ -265,7 +324,13 @@ class Orm  {
 
 $orm = new Orm("posts");
 
-$data = $orm->where("title", "Farhad")->findall_orm();
+
+$orm->find(25);
+$orm->title = "My sss titles";
+$orm->user_id = 1;
+
+$orm->save();
+//$data = $orm->where("title", "Farhad")->findall_orm();
 
 
 
