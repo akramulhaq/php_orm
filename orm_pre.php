@@ -88,7 +88,7 @@ class Orm  {
     public function init(){
         $this->_fields     = array();
         $this->_field_list = array();
-        if($this->columns()->get()->result()){
+        if($this->columns()->query()->result()){
             while($column   = $this->_result->fetch_assoc())
             {    
                 
@@ -109,40 +109,14 @@ class Orm  {
         $this->_db->select_db($database);
     }
     
-   
-    
-    public function get($id=''){
-        
-        if($id){
-            $this->_id = $id;
-            $this->_sql = "SELECT * FROM `{$this->_table}` ";
-            $this->where("id",$this->_id);
-            // $this->execute();
-            // return $this;
-        }elseif($this->_sql){
-            
-        }elseif($this->_id){
-            $this->_sql = "SELECT * FROM `{$this->_table}` ";
-            $this->where("id",$this->_id);
-            // $this->execute();
-            // return $this;
-        }else{
-            $this->all();
-        }
-        
-        $this->query();
-        return $this;
-    }
-    
-    
     
     public function find($id=""){
         
         if($id){
-            $data = $this->get($id)->row();
-        }else{
-            $data = $this->all()->query()->row();
+            $this->where("id",$id);
         }
+        
+        $data = $this->all()->query()->row();
         
         if(!$data){
             $this->_error = "No data found";
@@ -152,6 +126,7 @@ class Orm  {
         foreach($this->_field_list as $field){
             $this->$field = $data->$field;
         }
+        $this->_id = $data->id;
         return $this;
     }
     
@@ -179,7 +154,7 @@ class Orm  {
             }
             $all_data[] = $temp_orm;
         }
-        //$this->_result->free();
+        
         return $all_data;
     }
     
@@ -213,6 +188,7 @@ class Orm  {
        $fields_counter = count($this->_fields);
        $types = str_repeat("s",$fields_counter);
        $params = array();
+       //echo $this->_id;
        if($this->_id){
            $this->_sql  = "UPDATE {$this->_table} set ";
            $this->_sql .= "`".implode("`=?,`",$this->_field_list).'`=?';
@@ -222,9 +198,10 @@ class Orm  {
                $params[] = &$this->$field;
            } 
            array_unshift($params,$types);
+           $this->execute($params);
            
        }else{
-            $this->id   = '';
+           $this->id   = '';
            $insert_sql = "INSERT INTO {$this->_table} (`".implode('`,`',$this->_field_list)."`) VALUES (" ;
            
            $comma_bind  = str_repeat("?,",$fields_counter-1);
@@ -326,8 +303,10 @@ $orm = new Orm("posts");
 
 
 $orm->find(25);
-$orm->title = "My sss titles";
-$orm->user_id = 1;
+$orm->title = "My sdf";
+// $orm->title = 1;
+
+//echo $orm->_id;
 
 $orm->save();
 //$data = $orm->where("title", "Farhad")->findall_orm();
