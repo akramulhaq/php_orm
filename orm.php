@@ -181,6 +181,7 @@ class Orm  {
         $where_sql = '';
         if($this->_where){
             foreach($this->_where as $key=>$value){
+                $value = $this->_db->escape_string($value);
                 $where_sql .= " `$key`='$value' AND ";                
             }
             $where_sql  = " WHERE ".$where_sql."1";
@@ -206,7 +207,8 @@ class Orm  {
        if($this->_id){
            $this->_sql = "UPDATE {$this->_table} set ";
            foreach($this->_fields as $field=>$field_data){
-               $this->_sql .= " $field='{$this->$field}',";
+               $this->$field = $this->_db->escape_string($this->$field);
+               $this->_sql  .= " $field='{$this->$field}',";
            }
            $this->_sql  = rtrim($this->_sql,',');
            $this->where("id",$this->_id);
@@ -217,6 +219,7 @@ class Orm  {
        $insert_sql = "INSERT INTO {$this->_table} (`".implode('`,`',$this->_field_list)."`) VALUES (" ;
        $this->_sql  = $insert_sql;
        foreach($this->_fields as $field=>$field_data){
+           $this->$field = $this->_db->escape_string($this->$field);
            $this->_sql .= "'{$this->$field}',";
        }
        $this->_sql  = rtrim($this->_sql,',');
@@ -265,10 +268,8 @@ class Orm  {
 
 $orm = new Orm("posts");
 
-$data = $orm->where("title", "Farhad")->findall_orm();
 
-
-
+// print_r($data);
 
 
 

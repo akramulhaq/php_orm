@@ -15,6 +15,7 @@ class Orm  {
     public  $_result;
     public  $_stmt;
     public  $_fields    = array();
+    public  $_data      = array();
     public  $_where     = array();
     public  $_field_list= array();
     public  $_error     = "";
@@ -22,6 +23,7 @@ class Orm  {
     public function __construct($table=''){
         
         $this->_db = new mysqli($this->_host,$this->_username,$this->_password,$this->_db_name);
+        $this->_db->set_charset("utf8");
         if($table){
             $this->_table = $table;
             $this->init();
@@ -80,6 +82,7 @@ class Orm  {
         return $data ;
     }
     
+    
     public function last_sql(){
         
         return $this->_last_sql;
@@ -116,8 +119,8 @@ class Orm  {
             $this->where("id",$id);
         }
         
-        $data = $this->all()->query()->row();
-        
+        $data = $this->all()->execute()->row();
+        $this->_data = $data;
         if(!$data){
             $this->_error = "No data found";
             return $this;
@@ -130,12 +133,14 @@ class Orm  {
         return $this;
     }
     
+    
+    
     public function findall(){
-       return $this->all()->query()->data();
+       return $this->all()->execute()->data();
     }
     
     public function findall_object(){
-        $this->all()->query();
+        $this->all()->execute();
         $all_data = array();
         while($data = $this->_result->fetch_object()){
             $all_data[] = $data;
@@ -145,7 +150,7 @@ class Orm  {
     }
     
     public function findall_orm(){
-        $this->all()->query();
+        $this->all()->execute();
         $temp_orm = $this;
         $all_data = array();
         while($data = $this->_result->fetch_object()){
@@ -158,12 +163,15 @@ class Orm  {
         return $all_data;
     }
     
+    
+    
     public function query($sql='',$resultmode = MYSQLI_STORE_RESULT){
         if(!$sql)
             $sql = $this->_sql;
         $where_sql = '';
         if($this->_where){
             foreach($this->_where as $key=>$value){
+                $value = $this->_db->escape_string($value);
                 $where_sql .= " `$key`='$value' AND ";                
             }
             $where_sql  = " WHERE ".$where_sql."1";
@@ -187,17 +195,20 @@ class Orm  {
     public function save(){
        $fields_counter = count($this->_fields);
        $types = str_repeat("s",$fields_counter);
-       $params = array();
-       //echo $this->_id;
+       $params = array($types);
+       
        if($this->_id){
+           
+           if(!$this->id)
+               $this->id = $this->_id;
            $this->_sql  = "UPDATE {$this->_table} set ";
            $this->_sql .= "`".implode("`=?,`",$this->_field_list).'`=?';
            $this->where("id",$this->_id);
-           $params = array();
+           
            foreach($this->_fields as $field=>$field_data){
                $params[] = &$this->$field;
            } 
-           array_unshift($params,$types);
+           
            $this->execute($params);
            
        }else{
@@ -212,8 +223,8 @@ class Orm  {
            foreach($this->_fields as $field=>$field_data){
                $params[] = &$this->$field;
            }
-           array_unshift($params,$types); // put types in first element in array;
-           
+          
+           $this->_where = array();    // no where query on insert
            $this->execute($params);
            $this->id  = $this->_stmt->insert_id;
            $this->_id = $this->_stmt->insert_id;
@@ -246,14 +257,20 @@ class Orm  {
            die($this->_sql."\n".$this->_db->error);
        }
        
-       
-       $ref_class    = new ReflectionClass('mysqli_stmt');
-       $method       = $ref_class->getMethod("bind_param");
-       $method->invokeArgs($stmt,$params);
+       if($params[0]){ // if bind param found , on select query no types may be found.
+           $ref_class    = new ReflectionClass('mysqli_stmt');
+           $method       = $ref_class->getMethod("bind_param");
+           $method->invokeArgs($stmt,$params);
+       }
        $stmt->execute();
        
        if($stmt->error)
            die($this->_sql."\n".$stmt->error);
+       
+       $this->_result = $stmt->get_result();
+       
+       $this->_last_sql = $this->_sql;
+       $this->_sql = '';
        
        $this->_stmt = $stmt;
        
@@ -278,7 +295,8 @@ class Orm  {
         if(!is_array($name)){
             $this->_where[$name] = $value;            
         }else{
-            $this->_where = $name;
+            foreach($name as $key=>$value)
+                $this->_where[$key] = $value;
         }   
         return $this;
     }
@@ -299,22 +317,14 @@ class Orm  {
    
 }
 
-$orm = new Orm("posts");
+$post = new Orm("posts");
+
+$post->_id = 2;
+$post->set("title","new titles")
+     ->set("user_id",1)
+     ->set("body","this is not a body")
+     ->save();
 
 
-$orm->find(25);
-$orm->title = "My sdf";
-// $orm->title = 1;
+print_r($post->where("id",1)->find());
 
-//echo $orm->_id;
-
-$orm->save();
-//$data = $orm->where("title", "Farhad")->findall_orm();
-
-
-
-
-
-
-
- 
