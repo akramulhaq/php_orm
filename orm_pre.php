@@ -19,6 +19,7 @@ class Orm  {
     public  $_where     = array();
     public  $_field_list= array();
     public  $_error     = "";
+    public  $_validate  = false;
     
     public function __construct($table=''){
         
@@ -46,6 +47,11 @@ class Orm  {
         return $this;
     }
     
+    public function id($id){
+        $this->_id = $id;
+        $this->id  = $id;
+        return $this;
+    }
     
     public function db(){
         return $this->_db;
@@ -68,7 +74,7 @@ class Orm  {
         return $this->_result;
     }
     public function insert_id(){
-        return $this->_db->insert_id;        
+        return $this->_stmt->insert_id;       
     }
     public function row(){
         $data = $this->_result->fetch_object();
@@ -234,6 +240,9 @@ class Orm  {
        return $this; 
     }
     
+    
+    
+    
     public function execute($params=array()){
         
         if(!$params)
@@ -315,16 +324,35 @@ class Orm  {
         return $this;
     }
    
+   
+   public function validate($status=true){
+        $this->_validate = true;     
+   }
+   
+   public function validation(){
+        /*
+        if(!$this->_validate)
+            return false;
+        foreach($this->_fields as $key=>field){
+            if($field['data_type'] =="varchar"){
+                $len = strlen($this->$key);
+                 
+            }
+        }
+        */
+   }
+   
 }
 
 $post = new Orm("posts");
 
-$post->_id = 2;
-$post->set("title","new titles")
+
+$post->find(1)
+     ->set("title","sasdf")
      ->set("user_id",1)
-     ->set("body","this is not a body")
+     ->set("body","asdfaaa")
      ->save();
+echo $post->last_sql();
 
 
-print_r($post->where("id",1)->find());
 
