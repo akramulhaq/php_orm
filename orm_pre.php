@@ -202,7 +202,9 @@ class Orm  {
        $fields_counter = count($this->_fields);
        $types = str_repeat("s",$fields_counter);
        $params = array($types);
-       
+       if(!$this->validation()){
+           die($this->_error);
+       }
        if($this->_id){
            
            if(!$this->id)
@@ -316,7 +318,8 @@ class Orm  {
                             data_type,
                             column_key,
                             character_maximum_length length,
-                            numeric_precision  int_length
+                            numeric_precision  int_length,
+                            is_nullable
                         FROM `INFORMATION_SCHEMA`.`COLUMNS` 
                         WHERE `table_SCHEMA`='{$this->_db_name}' 
                             AND `table_NAME`='{$this->_table}'";
@@ -326,20 +329,28 @@ class Orm  {
    
    
    public function validate($status=true){
-        $this->_validate = true;     
+        $this->_validate = true;
+        return $this;
    }
    
-   public function validation(){
-        /*
+   public function validation($config=array()){
+        
         if(!$this->_validate)
-            return false;
-        foreach($this->_fields as $key=>field){
-            if($field['data_type'] =="varchar"){
-                $len = strlen($this->$key);
-                 
+            return true;
+        $error = false;
+        foreach($this->_fields as $key=>$field){
+            if($key=="id")
+                continue;
+            $len = strlen($this->$key);
+            if($field["is_nullable"] == "NO" AND (!$len)){
+                $this->_error .= " \n $key can not be empty";
+                $error = true;
             }
-        }
-        */
+                
+            
+        } 
+        return !$error; // if error occurred validation should be false;
+        
    }
    
 }
@@ -347,12 +358,22 @@ class Orm  {
 $post = new Orm("posts");
 
 
-$post->find(1)
-     ->set("title","sasdf")
-     ->set("user_id",1)
-     ->set("body","asdfaaa")
-     ->save();
-echo $post->last_sql();
+
+//print_r($post->_fields);
+
+// $post
+    // ->set("title","MY" )
+    // ->set("body","Dear" )
+    // ->set("cover_image","aa" )
+    // ->set("user_id",1 )
+    // ->validate()
+    // ->save()
+    // ;
+    
+// $data = $post->findall();
+
+     
+
 
 
 
