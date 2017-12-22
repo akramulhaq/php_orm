@@ -2,7 +2,7 @@
 
 
 class Orm  {
-    public $_table     = "users";
+    public  $_table     = "users";
     private $_id        = "";
     private $_sql       = "";
     private $_where_sql = "";
@@ -13,14 +13,18 @@ class Orm  {
     public  $_db                 ;
     public  $_db_name   = "lsapp";
     public  $_result;
+    public  $_stmt;
     public  $_fields    = array();
+    public  $_data      = array();
     public  $_where     = array();
     public  $_field_list= array();
     public  $_error     = "";
+    public  $_validate  = false;
     
     public function __construct($table=''){
         
         $this->_db = new mysqli($this->_host,$this->_username,$this->_password,$this->_db_name);
+        $this->_db->set_charset("utf8");
         if($table){
             $this->_table = $table;
             $this->init();
@@ -43,6 +47,11 @@ class Orm  {
         return $this;
     }
     
+    public function id($id){
+        $this->_id = $id;
+        $this->id  = $id;
+        return $this;
+    }
     
     public function db(){
         return $this->_db;
@@ -56,7 +65,7 @@ class Orm  {
     }
     
     public function all(){
-        $this->_sql = "SELECT * FROM {$this->_table}";
+        $this->_sql = "SELECT * FROM `{$this->_table}`";
         return $this;
     }
     
@@ -65,7 +74,7 @@ class Orm  {
         return $this->_result;
     }
     public function insert_id(){
-        return $this->_db->insert_id;        
+        return $this->_stmt->insert_id;       
     }
     public function row(){
         $data = $this->_result->fetch_object();
@@ -79,6 +88,7 @@ class Orm  {
         return $data ;
     }
     
+    
     public function last_sql(){
         
         return $this->_last_sql;
@@ -87,7 +97,7 @@ class Orm  {
     public function init(){
         $this->_fields     = array();
         $this->_field_list = array();
-        if($this->columns()->get()->result()){
+        if($this->columns()->query()->result()){
             while($column   = $this->_result->fetch_assoc())
             {    
                 
@@ -108,34 +118,15 @@ class Orm  {
         $this->_db->select_db($database);
     }
     
-   
-    
-    public function get($id=''){
-        
-        if($id){
-            $this->_id = $id;
-            $this->_sql = "SELECT * FROM {$this->_table} where id='{$this->_id}'";
-        }elseif($this->_sql){
-            
-        }elseif($this->_id){
-            $this->_sql = "SELECT * FROM {$this->_table} where id='{$this->_id}'";
-        }else{
-            $this->all();
-        }
-        $this->query();
-        return $this;
-    }
-    
-    
     
     public function find($id=""){
         
         if($id){
-            $data = $this->get($id)->row();
-        }else{
-            $data = $this->all()->query()->row();
+            $this->where("id",$id);
         }
         
+        $data = $this->all()->execute()->row();
+        $this->_data = $data;
         if(!$data){
             $this->_error = "No data found";
             return $this;
@@ -144,15 +135,18 @@ class Orm  {
         foreach($this->_field_list as $field){
             $this->$field = $data->$field;
         }
+        $this->_id = $data->id;
         return $this;
     }
     
+    
+    
     public function findall(){
-       return $this->all()->query()->data();
+       return $this->all()->execute()->data();
     }
     
     public function findall_object(){
-        $this->all()->query();
+        $this->all()->execute();
         $all_data = array();
         while($data = $this->_result->fetch_object()){
             $all_data[] = $data;
@@ -162,7 +156,7 @@ class Orm  {
     }
     
     public function findall_orm(){
-        $this->all()->query();
+        $this->all()->execute();
         $temp_orm = $this;
         $all_data = array();
         while($data = $this->_result->fetch_object()){
@@ -171,9 +165,11 @@ class Orm  {
             }
             $all_data[] = $temp_orm;
         }
-        //$this->_result->free();
+        
         return $all_data;
     }
+    
+    
     
     public function query($sql='',$resultmode = MYSQLI_STORE_RESULT){
         if(!$sql)
@@ -203,39 +199,104 @@ class Orm  {
     }
     
     public function save(){
-       
+       $fields_counter = count($this->_fields);
+       $types = str_repeat("s",$fields_counter);
+       $params = array($types);
+       if(!$this->validation()){
+           die($this->_error);
+       }
        if($this->_id){
-           $this->_sql = "UPDATE {$this->_table} set ";
-           foreach($this->_fields as $field=>$field_data){
-               $this->$field = $this->_db->escape_string($this->$field);
-               $this->_sql  .= " $field='{$this->$field}',";
-           }
-           $this->_sql  = rtrim($this->_sql,',');
+           
+           if(!$this->id)
+               $this->id = $this->_id;
+           $this->_sql  = "UPDATE {$this->_table} set ";
+           $this->_sql .= "`".implode("`=?,`",$this->_field_list).'`=?';
            $this->where("id",$this->_id);
-           $this->query();
-           return $this;
+           
+           foreach($this->_fields as $field=>$field_data){
+               $params[] = &$this->$field;
+           } 
+           
+           $this->execute($params);
+           
+       }else{
+           $this->id   = '';
+           $insert_sql = "INSERT INTO {$this->_table} (`".implode('`,`',$this->_field_list)."`) VALUES (" ;
+           
+           $comma_bind  = str_repeat("?,",$fields_counter-1);
+           $comma_bind .= "?)";
+           $insert_sql .= $comma_bind;
+           
+           $this->_sql  = $insert_sql;
+           foreach($this->_fields as $field=>$field_data){
+               $params[] = &$this->$field;
+           }
+          
+           $this->_where = array();    // no where query on insert
+           $this->execute($params);
+           $this->id  = $this->_stmt->insert_id;
+           $this->_id = $this->_stmt->insert_id;
+           
        }
-       $this->id = '';
-       $insert_sql = "INSERT INTO {$this->_table} (`".implode('`,`',$this->_field_list)."`) VALUES (" ;
-       $this->_sql  = $insert_sql;
-       foreach($this->_fields as $field=>$field_data){
-           $this->$field = $this->_db->escape_string($this->$field);
-           $this->_sql .= "'{$this->$field}',";
-       }
-       $this->_sql  = rtrim($this->_sql,',');
-       $this->_sql .= ")";
-       $this->query();
-       $this->_id   = $this->insert_id();
-       $this->id    = $this->_id;
+       
        return $this; 
     }
+    
+    
+    
+    
+    public function execute($params=array()){
+        
+        if(!$params)
+            $params[0] = '';
+        
+        $where_sql = '';
+        if($this->_where){
+            
+            $where_index = array_keys($this->_where);
+            $where_sql  = " WHERE `".implode("`=? AND `",$where_index).'`=?';
+            $params[0] .= str_repeat("s",count($this->_where));   //$params[0] is type list            
+            foreach($this->_where as $value){
+                $params[] = &$value;
+            } 
+            $this->_where_sql = $where_sql;
+        }
+        
+        
+       $this->_sql .= $where_sql;
+       if(!$stmt = $this->_db->prepare($this->_sql)){
+           die($this->_sql."\n".$this->_db->error);
+       }
+       
+       if($params[0]){ // if bind param found , on select query no types may be found.
+           $ref_class    = new ReflectionClass('mysqli_stmt');
+           $method       = $ref_class->getMethod("bind_param");
+           $method->invokeArgs($stmt,$params);
+       }
+       $stmt->execute();
+       
+       if($stmt->error)
+           die($this->_sql."\n".$stmt->error);
+       
+       $this->_result = $stmt->get_result();
+       
+       $this->_last_sql = $this->_sql;
+       $this->_sql = '';
+       
+       $this->_stmt = $stmt;
+       
+       return $this;
+       
+    }
+    
+    
     
     public function delete($id=''){
         if(!$id)
             $id = $this->_id;
         $this->_sql = "Delete FROM {$this->_table} ";
         $this->where("id",$id);
-        $this->query();
+        $this->execute();
         $this->id = '';
         $this->_id = '';
         return $this;
@@ -245,7 +306,8 @@ class Orm  {
         if(!is_array($name)){
             $this->_where[$name] = $value;            
         }else{
-            $this->_where = $name;
+            foreach($name as $key=>$value)
+                $this->_where[$key] = $value;
         }   
         return $this;
     }
@@ -256,7 +318,8 @@ class Orm  {
                             data_type,
                             column_key,
                             character_maximum_length length,
-                            numeric_precision  int_length
+                            numeric_precision  int_length,
+                            is_nullable
                         FROM `INFORMATION_SCHEMA`.`COLUMNS` 
                         WHERE `table_SCHEMA`='{$this->_db_name}' 
                             AND `table_NAME`='{$this->_table}'";
@@ -264,14 +327,53 @@ class Orm  {
         return $this;
     }
    
+   
+   public function validate($status=true){
+        $this->_validate = true;
+        return $this;
+   }
+   
+   public function validation($config=array()){
+        
+        if(!$this->_validate)
+            return true;
+        $error = false;
+        foreach($this->_fields as $key=>$field){
+            if($key=="id")
+                continue;
+            $len = strlen($this->$key);
+            if($field["is_nullable"] == "NO" AND (!$len)){
+                $this->_error .= " \n $key can not be empty";
+                $error = true;
+            }
+                
+            
+        } 
+        return !$error; // if error occurred validation should be false;
+        
+   }
+   
 }
 
-$orm = new Orm("posts");
-
-
-// print_r($data);
+$post = new Orm("posts");
 
 
 
+//print_r($post->_fields);
 
- 
+// $post
+    // ->set("title","MY" )
+    // ->set("body","Dear" )
+    // ->set("cover_image","aa" )
+    // ->set("user_id",1 )
+    // ->validate()
+    // ->save()
+    // ;
+    
+// $data = $post->findall();
+
+     
+
+
+
+
