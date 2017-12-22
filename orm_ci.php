@@ -2,7 +2,7 @@
 
 
 class Orm  {
-    public  $_table     = "users";
+    public  $_table     = "";
     private $_id        = "";
     private $_sql       = "";
     private $_where_sql = "";
@@ -20,10 +20,21 @@ class Orm  {
     public  $_field_list= array();
     public  $_error     = "";
     public  $_validate  = false;
+	private $_ci 	;
+	private $_ci_db ;
     
     public function __construct($table=''){
         
-        $this->_db = new mysqli($this->_host,$this->_username,$this->_password,$this->_db_name);
+        
+		$this->_ci    	 = &get_instance();
+		$this->_ci_db 	 = $this->_ci->load->database();
+		
+		$this->_host 	 = $this->_ci->db->hostname;
+		$this->_username = $this->_ci->db->username;
+		$this->_password = $this->_ci->db->password;
+		$this->_db_name  = $this->_ci->db->database;
+		
+		$this->_db = new mysqli($this->_host,$this->_username,$this->_password,$this->_db_name);
         $this->_db->set_charset("utf8");
         if($table){
             $this->_table = $table;
@@ -37,10 +48,16 @@ class Orm  {
         $this->$name = $value;
     }
     
-    public function __get($name){
+    public function __get($name)
+	{
         return $name;
     }
     
+	public function __call($name, $arguments)
+    {
+		$this->_ci->db->$name($arguments);
+	}
+	
     public function set($field,$value){
         $this->_fields[$field]['value'] = $value;
         $this->$field = $value;
