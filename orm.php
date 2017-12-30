@@ -29,8 +29,8 @@ class Orm  {
             $this->_table = $table;
             $this->init();
         }
-       
         
+        //return $this;        
     }
     public function __set($name, $value)
     {
@@ -43,6 +43,8 @@ class Orm  {
     
     public function set($field,$value){
         $this->_fields[$field]['value'] = $value;
+        $this->_fields[$field]['set']   = 1;
+        
         $this->$field = $value;
         return $this;
     }
@@ -107,6 +109,7 @@ class Orm  {
                 $column['value']    = '';
                 $this->$column_name = '';
                 $this->_fields[$column_name] = $column;
+                $this->_fields[$column_name]['set'] = '';
                 $this->_field_list[] = $column_name;
             }
         }
@@ -210,7 +213,7 @@ class Orm  {
            
            if(!$this->id)
                $this->id = $this->_id;
-           $this->_sql  = "UPDATE {$this->_table} set ";
+           $this->_sql  = "UPDATE {$this->_table} SET ";
            $this->_sql .= "`".implode("`=?,`",$this->_field_list).'`=?';
            $this->where("id",$this->_id);
            
@@ -243,9 +246,42 @@ class Orm  {
        return $this; 
     }
     
-    
-    
-    
+    public function update_seleced($req_where=true){
+        
+        if($req_where and !($this->_where)){
+            $this->_error = "No where clause found";
+            return false;
+        }
+        
+        $params  = array();
+        $temp_field = array();
+        $counter = 0;
+        foreach($this->_fields as $field=>$field_data){
+           
+           if($field_data['set']){
+               $counter = $counter + 1;
+               $params[]   = &$this->$field;
+               $temp_field[] = $field;
+           }
+        }
+        
+        if(!$params){
+            $this->_error = "No update parameter found";
+            return false;
+        }
+           
+        
+        $types = str_repeat("s",$counter);
+        array_unshift($params,$types); // put types in first parameter
+       
+        
+        $this->_sql = "UPDATE {$this->_table} SET ". 
+                    "`".implode("`=?,`",$temp_field)."`=?" ;
+        $this->execute($params);            
+        
+        return $this->_db->affected_rows;
+        
+    } 
     public function execute($params=array()){
         
         if(!$params)
@@ -269,7 +305,7 @@ class Orm  {
            die($this->_sql."\n".$this->_db->error);
        }
        
-       if($params[0]){ // if bind param found , on select query no types may be found.
+       if($params[0]){ // if bind param found , on select query. No types may be found.
            $ref_class    = new ReflectionClass('mysqli_stmt');
            $method       = $ref_class->getMethod("bind_param");
            $method->invokeArgs($stmt,$params);
@@ -355,3 +391,11 @@ class Orm  {
    }
    
 }
+
+$test = new Orm("test");
+
+$test->set('name',"test names")
+     ->where("id",1);
+echo $test->update_seleced();
+
+print_r($test->findall());
