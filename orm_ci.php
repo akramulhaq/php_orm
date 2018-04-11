@@ -22,6 +22,7 @@ class Orm  {
     public  $_validate  = false;
 	private $_ci 	;
 	private $_ci_db ;
+	private $_affected_rows ;
     
     public function __construct($table=''){
         
@@ -60,10 +61,12 @@ class Orm  {
 	
     public function set($field,$value){
         $this->_fields[$field]['value'] = $value;
+        $this->_fields[$field]['set']   = 1;
+        
         $this->$field = $value;
         return $this;
     }
-    
+	
     public function id($id){
         $this->_id = $id;
         $this->id  = $id;
@@ -81,7 +84,12 @@ class Orm  {
     public function sql(){
         return $this->_sql;
     }
-    
+    public function affected_rows(){
+		return $this->_affected_rows;
+	}
+	public function error(){
+		return $this->_error;
+	}
     public function all(){
         $this->_sql = "SELECT * FROM `{$this->_table}`";
         return $this;
@@ -260,7 +268,46 @@ class Orm  {
        return $this; 
     }
     
-    
+    public function update_selected($req_where=false){
+        
+        if($req_where and !($this->_where)){
+            $this->_error = "No where clause found";
+            return $this;
+        }
+		
+		
+        $params  = array();
+        $temp_field = array();
+        $counter = 0;
+        foreach($this->_fields as $field=>$field_data){
+           
+           if(!empty($field_data['set'])){
+               $counter = $counter + 1;
+               $params[]   = &$this->$field;
+               $temp_field[] = $field;
+           }
+        }
+        
+        if(!$params){
+            $this->_error = "No update parameter found";
+            return $this;
+        }
+        
+		if($this->id)	
+			$this->where("id",$this->id);
+		
+        $types = str_repeat("s",$counter);
+        array_unshift($params,$types); // put types in first parameter
+       
+        
+        $this->_sql = "UPDATE {$this->_table} SET ". 
+                    "`".implode("`=?,`",$temp_field)."`=?" ;
+        $this->execute($params);            
+        
+        $this->_affected_rows =  $this->_db->affected_rows;
+		return $this;
+        
+    } 
     
     
     public function execute($params=array()){
@@ -302,7 +349,7 @@ class Orm  {
        $this->_sql = '';
        
        $this->_stmt = $stmt;
-       
+	    
        return $this;
        
     }
